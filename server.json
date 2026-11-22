@@ -1,0 +1,11 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.jabran/ifrs-year-end-close-agent",
+  "title": "IFRS Year-End Close Agent",
+  "description": "Impairment (IAS 36), provisions (IAS 37), income taxes and Pillar Two (IAS 12) and events after...",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/jabran/ifrs-year-end-close-agent",
+    "source": "github"
+  }
+}

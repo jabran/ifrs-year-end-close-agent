@@ -1,0 +1,1987 @@
+{
+  "serverInfo": {
+    "name": "ifrs-year-end-close-agent",
+    "title": "IFRS Year-End Close Agent",
+    "version": "1.0.0"
+  },
+  "description": "Impairment (IAS 36), provisions (IAS 37), income taxes and Pillar Two (IAS 12) and events after the reporting period (IAS 10) in one agent. Demo and educational use only. No liability assumed for results. Not professional advice.",
+  "transport": {
+    "type": "stdio",
+    "command": "node",
+    "args": [
+      "dist/server.mjs"
+    ]
+  },
+  "capabilities": {
+    "tools": {},
+    "prompts": {},
+    "resources": {}
+  },
+  "tools": [
+    {
+      "name": "agent_about",
+      "title": "IFRS Year-End Close Agent: what this agent covers",
+      "description": "Lists the standards and tools in this agent, the order to use them in, and the terms of use.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias36_indicators",
+      "title": "IAS 36: Impairment indicators and annual test triggers (8-17)",
+      "description": "Assesses the external and internal indications of impairment at the reporting date (including net assets above market capitalisation), identifies assets requiring an annual test regardless of indicators (goodwill, indefinite-life intangibles, intangibles not yet available for use), and applies the materiality relief when previous calculations showed substantial headroom.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "marketValueDecline": {
+            "type": "boolean",
+            "description": "Asset's market value declined significantly more than expected [IAS 36.12(a)]",
+            "default": false
+          },
+          "adverseEnvironment": {
+            "type": "boolean",
+            "description": "Significant adverse change in technology, market, economy or law [IAS 36.12(b)]",
+            "default": false
+          },
+          "interestRatesUp": {
+            "type": "boolean",
+            "description": "Market interest rates rose, likely to raise the discount rate materially [IAS 36.12(c)]",
+            "default": false
+          },
+          "obsolescenceDamage": {
+            "type": "boolean",
+            "description": "Evidence of obsolescence or physical damage [IAS 36.12(e)]",
+            "default": false
+          },
+          "adverseUse": {
+            "type": "boolean",
+            "description": "Adverse change in use: idle, restructuring, earlier disposal, life now finite [IAS 36.12(f)]",
+            "default": false
+          },
+          "worsePerformance": {
+            "type": "boolean",
+            "description": "Internal reporting shows economic performance worse than expected [IAS 36.12(g)]",
+            "default": false
+          },
+          "dividendExceedsIncome": {
+            "type": "boolean",
+            "description": "Dividend from subsidiary, JV or associate exceeds its total comprehensive income [IAS 36.12(h)]",
+            "default": false
+          },
+          "marketCapitalisation": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Market capitalisation (0 if not listed) [IAS 36.12(d)]",
+            "default": 0
+          },
+          "netAssetsCarryingAmount": {
+            "type": "number",
+            "description": "Carrying amount of net assets [IAS 36.12(d)]",
+            "default": 0
+          },
+          "hasGoodwill": {
+            "type": "boolean",
+            "description": "Goodwill acquired in a business combination [IAS 36.10(b), IAS 36.90]",
+            "default": false
+          },
+          "hasIndefiniteLifeIntangible": {
+            "type": "boolean",
+            "description": "Intangible assets with indefinite useful lives [IAS 36.10(a)]",
+            "default": false
+          },
+          "hasIntangibleNotYetAvailable": {
+            "type": "boolean",
+            "description": "Intangible assets not yet available for use [IAS 36.10(a)]",
+            "default": false
+          },
+          "priorHeadroomSubstantial": {
+            "type": "boolean",
+            "description": "Previous calculation showed substantial headroom, not eliminated by events [IAS 36.15, IAS 36.16]",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias36_value_in_use",
+      "title": "IAS 36: Value in use, recoverable amount and impairment loss (18-57)",
+      "description": "Discounts pre-tax cash flow projections at a pre-tax discount rate (year-end convention), adds an optional perpetuity terminal value extrapolated at a steady growth rate, compares value in use with fair value less costs of disposal to get recoverable amount (the higher), and measures the impairment loss or headroom against carrying amount. Flags projection periods over five years and growth above the long-term average.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cashFlows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "year": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Year"
+                },
+                "cashFlow": {
+                  "type": "number",
+                  "description": "Net cash flow"
+                }
+              },
+              "required": [
+                "year",
+                "cashFlow"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "description": "Pre-tax cash flows from continuing use (exclude financing, tax, uncommitted restructurings and enhancements)"
+          },
+          "discountRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Pre-tax discount rate [IAS 36.55, IAS 36.A20]"
+          },
+          "includeTerminalValue": {
+            "type": "boolean",
+            "description": "Extrapolate beyond the budget period (terminal value) [IAS 36.33(c)]",
+            "default": true
+          },
+          "terminalGrowth": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1,
+            "description": "Steady or declining growth rate beyond the budget period [IAS 36.33(c), IAS 36.36]",
+            "default": 0
+          },
+          "longTermAverageGrowth": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1,
+            "description": "Long-term average growth rate for the market (for the cap check) [IAS 36.33(c)]",
+            "default": 0
+          },
+          "carryingAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Carrying amount of the asset or CGU [IAS 36.59, IAS 36.75]"
+          },
+          "fairValueLessCostsOfDisposal": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Fair value less costs of disposal (0 if not measurable) [IAS 36.18, IAS 36.20, IAS 36.28]",
+            "default": 0
+          }
+        },
+        "required": [
+          "cashFlows",
+          "discountRate",
+          "carryingAmount"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias36_cgu_allocation",
+      "title": "IAS 36: CGU impairment: goodwill first, pro rata with floors, NCI gross-up (104-108, C1-C9)",
+      "description": "Compares the carrying amount of a cash-generating unit (grossed up for unrecognised NCI goodwill when NCI is measured at its proportionate share) with recoverable amount, allocates the loss first to goodwill (recognising only the parent's share of a grossed-up goodwill loss) and then pro rata to the other assets by carrying amount, without reducing any asset below the highest of its fair value less costs of disposal, value in use and zero, reallocating the excess. Splits the recognised loss between parent and NCI.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cgu": {
+            "type": "string",
+            "description": "CGU or group of CGUs [IAS 36.6, IAS 36.80]"
+          },
+          "goodwill": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Goodwill allocated (as recognised) [IAS 36.80]",
+            "default": 0
+          },
+          "nciMethod": {
+            "type": "string",
+            "enum": [
+              "none",
+              "proportionate",
+              "fairValue"
+            ],
+            "description": "Non-controlling interests [IAS 36.C4] Options: none (None (wholly owned)); proportionate (NCI at proportionate share of net assets (goodwill grossed up)); fairValue (NCI at fair value (goodwill includes NCI share))",
+            "default": "none"
+          },
+          "parentOwnership": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Parent ownership interest [IAS 36.C6]",
+            "default": 1
+          },
+          "recoverableAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Recoverable amount of the CGU [IAS 36.18, IAS 36.74]"
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "asset": {
+                  "type": "string",
+                  "description": "Asset"
+                },
+                "carryingAmount": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Carrying amount"
+                },
+                "floor": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Floor: highest of FVLCD, value in use, 0 [IAS 36.105]",
+                  "default": 0
+                }
+              },
+              "required": [
+                "asset",
+                "carryingAmount"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "description": "Assets"
+          }
+        },
+        "required": [
+          "cgu",
+          "recoverableAmount",
+          "assets"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias36_reversal",
+      "title": "IAS 36: Reversal of an impairment loss with the depreciated-cost ceiling (109-125)",
+      "description": "Rolls a straight-line asset forward from the impairment date, then measures the reversal when recoverable amount has increased because of a change in estimates: the increased carrying amount is capped at the depreciated amount had no impairment been recognised. Goodwill impairment is never reversed, and unwinding of the discount alone is not a reversal. Returns revised future depreciation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "string",
+            "description": "Asset"
+          },
+          "isGoodwill": {
+            "type": "boolean",
+            "description": "Asset is goodwill [IAS 36.124]",
+            "default": false
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Original cost"
+          },
+          "residualValue": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Residual value",
+            "default": 0
+          },
+          "usefulLifeYears": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Useful life (years)"
+          },
+          "impairmentYear": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Impairment recognised at end of year"
+          },
+          "impairmentLoss": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Impairment loss recognised [IAS 36.59]"
+          },
+          "currentYear": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Current reporting date: end of year"
+          },
+          "revisedRecoverableAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Revised recoverable amount [IAS 36.114]"
+          },
+          "changeInEstimates": {
+            "type": "boolean",
+            "description": "Increase results from a change in estimates (not just unwinding of the discount) [IAS 36.114, IAS 36.116]",
+            "default": true
+          }
+        },
+        "required": [
+          "asset",
+          "cost",
+          "usefulLifeYears",
+          "impairmentYear",
+          "impairmentLoss",
+          "currentYear",
+          "revisedRecoverableAmount"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias36_disclosure_checklist",
+      "title": "IAS 36: Disclosure checklist (126-137)",
+      "description": "Generates the tailored IAS 36 disclosure checklist, including key assumptions and sensitivity for CGUs with significant goodwill or indefinite-life intangibles.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "segments": {
+            "type": "boolean",
+            "description": "Entity reports segment information under IFRS 8 [IAS 36.129]",
+            "default": false
+          },
+          "materialLoss": {
+            "type": "boolean",
+            "description": "Material impairment loss or reversal for an asset or CGU [IAS 36.130]",
+            "default": false
+          },
+          "otherLosses": {
+            "type": "boolean",
+            "description": "Other impairment losses or reversals (aggregate) [IAS 36.131]",
+            "default": false
+          },
+          "unallocatedGoodwill": {
+            "type": "boolean",
+            "description": "Goodwill not yet allocated to CGUs at period end [IAS 36.133]",
+            "default": false
+          },
+          "significantGoodwill": {
+            "type": "boolean",
+            "description": "CGU with significant goodwill or indefinite-life intangibles [IAS 36.134]",
+            "default": false
+          },
+          "significantGoodwillViu": {
+            "type": "boolean",
+            "description": "Recoverable amount of that CGU based on value in use [IAS 36.134(d)]",
+            "default": false
+          },
+          "significantGoodwillFvlcd": {
+            "type": "boolean",
+            "description": "Recoverable amount of that CGU based on fair value less costs of disposal [IAS 36.134(e)]",
+            "default": false
+          },
+          "reasonablyPossibleChange": {
+            "type": "boolean",
+            "description": "Reasonably possible change in a key assumption would remove headroom [IAS 36.134(f)]",
+            "default": false
+          },
+          "spreadGoodwill": {
+            "type": "boolean",
+            "description": "Goodwill spread over CGUs each with an insignificant amount [IAS 36.135]",
+            "default": false
+          },
+          "carriedForward": {
+            "type": "boolean",
+            "description": "Recoverable amount carried forward from a prior period [IAS 36.136]",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias36_lookup",
+      "title": "IAS 36: Paragraph & topic lookup",
+      "description": "Searches the IAS 36 knowledge base by paragraph number or keywords and returns paraphrased requirements with paragraph citations, so answers can be grounded and cited.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Paragraph number or keywords"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias36_corporate_assets",
+      "title": "IAS 36: Corporate assets allocated to CGUs (100-103)",
+      "description": "Allocates the carrying amount of a corporate asset (for example a headquarters building) to the CGUs it serves on a reasonable and consistent basis, here carrying amounts weighted by remaining useful life as in IAS 36 Illustrative Example 8, and compares each CGU's carrying amount including its share with its recoverable amount.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "corporateAssetCarrying": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Carrying amount of the corporate asset [IAS 36.100, IAS 36.102]"
+          },
+          "cgus": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "cgu": {
+                  "type": "string",
+                  "description": "CGU"
+                },
+                "carryingAmount": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Carrying amount before corporate asset"
+                },
+                "remainingLifeYears": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Remaining useful life (years)"
+                },
+                "recoverableAmount": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Recoverable amount"
+                }
+              },
+              "required": [
+                "cgu",
+                "carryingAmount",
+                "remainingLifeYears",
+                "recoverableAmount"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "description": "CGUs"
+          }
+        },
+        "required": [
+          "corporateAssetCarrying",
+          "cgus"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias36_pre_tax_rate",
+      "title": "IAS 36: Pre-tax discount rate from a post-tax rate (55, BCZ85)",
+      "description": "Computes value in use from post-tax cash flows at a post-tax rate, then solves iteratively for the pre-tax rate that gives the same value when applied to pre-tax cash flows, as IAS 36 requires; compares it with a simple gross-up.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "postTaxRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Post-tax discount rate (for example a WACC) [IAS 36.A17, IAS 36.A19]"
+          },
+          "preTaxCashFlows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "year": {
+                  "type": "number",
+                  "minimum": 1,
+                  "description": "Year"
+                },
+                "cashFlow": {
+                  "type": "number",
+                  "description": "Pre-tax cash flow"
+                }
+              },
+              "required": [
+                "year",
+                "cashFlow"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "description": "Pre-tax cash flows"
+          },
+          "taxCashFlows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "year": {
+                  "type": "number",
+                  "minimum": 1,
+                  "description": "Year"
+                },
+                "tax": {
+                  "type": "number",
+                  "description": "Tax cash flow"
+                }
+              },
+              "required": [
+                "year",
+                "tax"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Tax paid by year",
+            "default": []
+          }
+        },
+        "required": [
+          "postTaxRate",
+          "preTaxCashFlows"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias37_recognition",
+      "title": "IAS 37: Provision, contingent liability or contingent asset? (14-35)",
+      "description": "Applies the IAS 37 decision tree (and IFRIC 21 for levies, recognised when the triggering activity occurs): a provision is recognised for a present legal or constructive obligation from a past event when an outflow is probable and can be estimated reliably; otherwise a contingent liability is disclosed unless the outflow is remote. For possible inflows, an asset is recognised only when virtually certain and a contingent asset is disclosed when probable.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": "string",
+            "description": "Item",
+            "default": "Item"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "liability",
+              "asset"
+            ],
+            "description": "Possible outflow (liability) or inflow (asset) [IAS 37.10] Options: liability (Possible outflow (provision or contingent liability)); asset (Possible inflow (contingent asset))",
+            "default": "liability"
+          },
+          "presentObligation": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "possible",
+              "no"
+            ],
+            "description": "Present obligation from a past obligating event at the reporting date [IAS 37.15, IAS 37.16, IAS 37.17] Options: yes (Yes (more likely than not, using all evidence)); possible (Only a possible obligation); no (No obligation)",
+            "default": "yes"
+          },
+          "obligationType": {
+            "type": "string",
+            "enum": [
+              "legal",
+              "constructive",
+              "levy",
+              "none"
+            ],
+            "description": "Kind of obligation [IAS 37.10, IAS 37.17] Options: legal (Legal (contract, legislation)); constructive (Constructive (established practice, published policy, specific statement)); levy (Levy imposed by government (IFRIC 21)); none (Not applicable)",
+            "default": "legal"
+          },
+          "levyTriggerOccurred": {
+            "type": "string",
+            "enum": [
+              "full",
+              "progressive",
+              "not_yet"
+            ],
+            "description": "Activity that triggers the levy under the legislation [IAS 37.IFRIC 21.8, IAS 37.IFRIC 21.11, IAS 37.IFRIC 21.12] Options: full (Occurred (or threshold reached) by the reporting date); progressive (Occurs over time and has partly occurred); not_yet (Not yet occurred)",
+            "default": "not_yet"
+          },
+          "outflowLikelihood": {
+            "type": "string",
+            "enum": [
+              "probable",
+              "possible",
+              "remote"
+            ],
+            "description": "Likelihood of an outflow of resources [IAS 37.23, IAS 37.24, IAS 37.86] Options: probable (Probable (more likely than not)); possible (Possible but not probable); remote (Remote)",
+            "default": "probable"
+          },
+          "reliableEstimate": {
+            "type": "boolean",
+            "description": "A reliable estimate can be made [IAS 37.25, IAS 37.26]",
+            "default": true
+          },
+          "inflowLikelihood": {
+            "type": "string",
+            "enum": [
+              "virtually_certain",
+              "probable",
+              "not_probable"
+            ],
+            "description": "Likelihood of an inflow of economic benefits [IAS 37.31, IAS 37.33, IAS 37.34] Options: virtually_certain (Virtually certain); probable (Probable); not_probable (Not probable)",
+            "default": "probable"
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias37_best_estimate",
+      "title": "IAS 37: Best estimate: expected value, most likely outcome, discounting and reimbursements (36-58)",
+      "description": "Measures a provision at the best estimate of the expenditure required to settle the obligation: the expected value for a large population (outcomes weighted by probability), the most likely outcome for a single obligation (with a check on other outcomes), or the mid-point of a continuous range. Discounts at a pre-tax rate when the time value of money is material, gives the first-year unwinding, and recognises a reimbursement as a separate asset only when virtually certain, capped at the provision.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "obligation": {
+            "type": "string",
+            "description": "Obligation",
+            "default": "Obligation"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "expected_value",
+              "most_likely",
+              "range_midpoint"
+            ],
+            "description": "Measurement approach [IAS 37.39, IAS 37.40] Options: expected_value (Expected value (large population)); most_likely (Most likely outcome (single obligation)); range_midpoint (Mid-point of a continuous range of equally likely outcomes)",
+            "default": "expected_value"
+          },
+          "scenarios": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "type": "string",
+                  "description": "Outcome"
+                },
+                "amount": {
+                  "type": "number",
+                  "description": "Cost if this outcome occurs [IAS 37.36, IAS 37.37]"
+                },
+                "probability": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Probability (decimal) [IAS 37.39]"
+                }
+              },
+              "required": [
+                "outcome",
+                "amount",
+                "probability"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Possible outcomes [IAS 37.39, IAS 37.40]",
+            "default": []
+          },
+          "rangeLow": {
+            "type": "number",
+            "description": "Low end of the range [IAS 37.39]",
+            "default": 0
+          },
+          "rangeHigh": {
+            "type": "number",
+            "description": "High end of the range [IAS 37.39]",
+            "default": 0
+          },
+          "yearsToSettlement": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 200,
+            "description": "Years until settlement (0 = no discounting) [IAS 37.45, IAS 37.46]",
+            "default": 0
+          },
+          "discountRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Pre-tax discount rate (decimal) [IAS 37.47]",
+            "default": 0
+          },
+          "expectedReimbursement": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Expected reimbursement (insurance, indemnity) [IAS 37.53]",
+            "default": 0
+          },
+          "reimbursementVirtuallyCertain": {
+            "type": "boolean",
+            "description": "Reimbursement virtually certain if the entity settles [IAS 37.53, IAS 37.54]",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias37_onerous_contract",
+      "title": "IAS 37: Onerous contracts: least net cost of exiting (66-69)",
+      "description": "Tests whether a contract is onerous by comparing the unavoidable costs with the expected economic benefits. Unavoidable costs are the least net cost of exiting: the lower of the cost of fulfilling the contract (incremental costs plus an allocation of other costs that relate directly to fulfilling contracts, 68A) and any compensation or penalties for failing to fulfil it. Impairment of assets dedicated to the contract is recognised first (69).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "contract": {
+            "type": "string",
+            "description": "Contract",
+            "default": "Contract"
+          },
+          "expectedBenefits": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Economic benefits still expected under the contract [IAS 37.10, IAS 37.67]"
+          },
+          "incrementalCosts": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Incremental costs of fulfilling (direct labour, materials) [IAS 37.68A]"
+          },
+          "allocatedDirectCosts": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Allocation of other costs relating directly to fulfilling (e.g. depreciation of equipment used) [IAS 37.68A]",
+            "default": 0
+          },
+          "exitCompensationOrPenalty": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Compensation or penalty to exit the contract (0 = cannot exit) [IAS 37.68]",
+            "default": 0
+          },
+          "dedicatedAssetsImpairment": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Impairment recognised first on assets dedicated to the contract [IAS 37.69]",
+            "default": 0
+          }
+        },
+        "required": [
+          "expectedBenefits",
+          "incrementalCosts"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias37_restructuring",
+      "title": "IAS 37: Restructuring provisions: obligation and eligible costs (70-83)",
+      "description": "Tests whether a constructive obligation to restructure exists at the reporting date (a detailed formal plan and a valid expectation raised in those affected, or a binding sale agreement for the sale of an operation) and measures the provision from direct costs only, excluding costs of the ongoing business, future operating losses and gains on expected asset disposals.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "description": "Restructuring",
+            "default": "Restructuring"
+          },
+          "detailedFormalPlan": {
+            "type": "boolean",
+            "description": "Detailed formal plan (business, locations, employees, expenditure, timing) [IAS 37.72(a)]",
+            "default": true
+          },
+          "validExpectationRaised": {
+            "type": "boolean",
+            "description": "Valid expectation raised in those affected before the reporting date (implementation started or main features announced) [IAS 37.72(b), IAS 37.73, IAS 37.75]",
+            "default": true
+          },
+          "involvesSaleOfOperation": {
+            "type": "boolean",
+            "description": "Involves the sale of an operation [IAS 37.78]",
+            "default": false
+          },
+          "bindingSaleAgreement": {
+            "type": "boolean",
+            "description": "Binding sale agreement at the reporting date [IAS 37.78, IAS 37.79]",
+            "default": false
+          },
+          "costs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item": {
+                  "type": "string",
+                  "description": "Item"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "redundancy",
+                    "contract_termination",
+                    "onerous",
+                    "other_direct",
+                    "retraining",
+                    "marketing",
+                    "systems",
+                    "future_losses",
+                    "disposal_gain"
+                  ],
+                  "description": "Category [IAS 37.80, IAS 37.81] Options: redundancy (Termination payments to employees); contract_termination (Costs of terminating leases and other contracts); onerous (Onerous contract losses arising from the restructuring); other_direct (Other direct costs necessarily entailed and not tied to ongoing activities); retraining (Retraining or relocating continuing staff); marketing (Marketing); systems (Investment in new systems and distribution networks); future_losses (Future operating losses up to the restructuring date); disposal_gain (Expected gains on disposal of assets)",
+                  "default": "redundancy"
+                },
+                "amount": {
+                  "type": "number",
+                  "description": "Amount [IAS 37.80]"
+                }
+              },
+              "required": [
+                "item",
+                "amount"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Expected costs [IAS 37.80]",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias37_provision_rollforward",
+      "title": "IAS 37: Provision movement reconciliation and unwinding (59-61, 84)",
+      "description": "Builds the paragraph 84 reconciliation for a class of provisions: opening balance, additional provisions, amounts used, unused amounts reversed, unwinding of the discount (opening balance times the rate) and the effect of a change in discount rate, and checks the result against the reported closing balance.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "provisionClass": {
+            "type": "string",
+            "description": "Class of provision",
+            "default": "Provisions"
+          },
+          "opening": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Opening carrying amount [IAS 37.84(a)]"
+          },
+          "additions": {
+            "type": "number",
+            "description": "Additional provisions (including increases) [IAS 37.84(b)]",
+            "default": 0
+          },
+          "used": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Amounts used (charged against the provision) [IAS 37.84(c), IAS 37.61]",
+            "default": 0
+          },
+          "reversed": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Unused amounts reversed [IAS 37.84(d), IAS 37.59]",
+            "default": 0
+          },
+          "discountRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Discount rate for unwinding on the opening balance (decimal; 0 = undiscounted) [IAS 37.60, IAS 37.84(e)]",
+            "default": 0
+          },
+          "discountRateChangeEffect": {
+            "type": "number",
+            "description": "Effect of a change in the discount rate [IAS 37.84(e)]",
+            "default": 0
+          },
+          "closingReported": {
+            "type": "number",
+            "description": "Closing balance per the statement of financial position (0 = do not check) [IAS 37.84(a)]",
+            "default": 0
+          }
+        },
+        "required": [
+          "opening"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias37_decommissioning_change",
+      "title": "IAS 37: Change in a decommissioning liability (IFRIC 1, cost model)",
+      "description": "Applies IFRIC 1 for an asset at cost: a change in the measurement of an existing decommissioning or restoration liability (timing, amount or discount rate) is added to or deducted from the asset's cost; a decrease beyond the carrying amount goes to profit or loss; the revised depreciable amount is spread over the remaining useful life. An increase is an indicator of possible impairment.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "string",
+            "description": "Asset",
+            "default": "Asset"
+          },
+          "assetCarryingAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Carrying amount of the related asset before the change [IAS 37.IFRIC 1.5]"
+          },
+          "liabilityBefore": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Liability before the change [IAS 37.59]"
+          },
+          "liabilityAfter": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Liability remeasured (current estimate and current discount rate) [IAS 37.47, IAS 37.59]"
+          },
+          "remainingUsefulLifeYears": {
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 200,
+            "description": "Remaining useful life (years) [IAS 37.IFRIC 1.7]"
+          }
+        },
+        "required": [
+          "assetCarryingAmount",
+          "liabilityBefore",
+          "liabilityAfter",
+          "remainingUsefulLifeYears"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias37_disclosure_checklist",
+      "title": "IAS 37: Disclosure checklist (84-92)",
+      "description": "Generates the tailored IAS 37 disclosure checklist for provisions, contingent liabilities and contingent assets.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "provisions": {
+            "type": "boolean",
+            "description": "Provisions recognised [IAS 37.84]",
+            "default": false
+          },
+          "contingentLiabilities": {
+            "type": "boolean",
+            "description": "Contingent liabilities that are not remote [IAS 37.86]",
+            "default": false
+          },
+          "contingentAssets": {
+            "type": "boolean",
+            "description": "Probable contingent assets [IAS 37.89]",
+            "default": false
+          },
+          "impracticable": {
+            "type": "boolean",
+            "description": "Some information is impracticable to provide [IAS 37.91]",
+            "default": false
+          },
+          "seriouslyPrejudicial": {
+            "type": "boolean",
+            "description": "Disclosure would seriously prejudice the entity in a dispute [IAS 37.92]",
+            "default": false
+          },
+          "restructuring": {
+            "type": "boolean",
+            "description": "Restructuring provision [IAS 37.70]",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias37_lookup",
+      "title": "IAS 37: Paragraph & topic lookup",
+      "description": "Searches the IAS 37 knowledge base by paragraph number or keywords and returns paraphrased requirements with paragraph citations, so answers can be grounded and cited.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Paragraph number or keywords"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_current_tax",
+      "title": "IAS 12: Current tax computation (12-14, 46)",
+      "description": "Computes taxable profit from accounting profit (permanent differences and temporary-difference movements), utilises losses brought forward, applies the enacted or substantively enacted rate, and gives current tax expense, the balance payable or receivable after instalments, and losses carried forward.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "accountingProfit": {
+            "type": "number",
+            "description": "Accounting profit before tax"
+          },
+          "nonDeductibleExpenses": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Non-deductible expenses (add)",
+            "default": 0
+          },
+          "exemptIncome": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Exempt income (deduct)",
+            "default": 0
+          },
+          "accountingDepreciation": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Accounting depreciation (add back)",
+            "default": 0
+          },
+          "taxAllowances": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Tax depreciation / capital allowances (deduct)",
+            "default": 0
+          },
+          "increaseInProvisionsNotDeductible": {
+            "type": "number",
+            "description": "Increase in provisions deductible only when paid (add; decrease negative)",
+            "default": 0
+          },
+          "otherTimingAdjustments": {
+            "type": "number",
+            "description": "Other temporary-difference adjustments (+/−)",
+            "default": 0
+          },
+          "lossesBroughtForward": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Tax losses brought forward [IAS 12.34]",
+            "default": 0
+          },
+          "taxRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Enacted / substantively enacted rate (decimal) [IAS 12.46]"
+          },
+          "priorYearAdjustment": {
+            "type": "number",
+            "description": "Prior-year under (+) / over (−) provision [IAS 12.80(b)]",
+            "default": 0
+          },
+          "instalmentsPaid": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Instalments paid during the year [IAS 12.12]",
+            "default": 0
+          }
+        },
+        "required": [
+          "accountingProfit",
+          "taxRate"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_deferred_tax",
+      "title": "IAS 12: Deferred tax schedule (15-33, 47-68, 74)",
+      "description": "For each asset, liability and unused tax loss computes the temporary difference (carrying amount vs tax base), applies the initial recognition exemptions (goodwill; non-business-combination transactions affecting neither profit, with no equal and offsetting differences), measures deferred tax at the expected rate, caps deferred tax assets at the probable recoverable amount, splits the movement between profit or loss, OCI, equity and goodwill, and applies the offset test.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "defaultRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Default tax rate (decimal) [IAS 12.47]"
+          },
+          "maxRecognisedDta": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Maximum deferred tax asset recognisable (0 = no cap; from ias12_dta_recoverability) [IAS 12.24, IAS 12.34]",
+            "default": 0
+          },
+          "offsetPermitted": {
+            "type": "boolean",
+            "description": "Same authority and taxable entity with a legal right of set-off [IAS 12.74]",
+            "default": true
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item": {
+                  "type": "string",
+                  "description": "Item"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "asset",
+                    "liability",
+                    "loss"
+                  ],
+                  "description": "Type Options: asset (Asset); liability (Liability); loss (Unused tax loss (amount in carrying column))",
+                  "default": "asset"
+                },
+                "carryingAmount": {
+                  "type": "number",
+                  "description": "Carrying amount (or loss amount)"
+                },
+                "taxBase": {
+                  "type": "number",
+                  "description": "Tax base [IAS 12.7, IAS 12.8]",
+                  "default": 0
+                },
+                "rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Rate if different (decimal, 0 = default) [IAS 12.47, IAS 12.51]",
+                  "default": 0
+                },
+                "initialRecognitionExemption": {
+                  "type": "boolean",
+                  "description": "Initial recognition exemption applies (goodwill / 15(b) / 24(b)) [IAS 12.15, IAS 12.24]",
+                  "default": false
+                },
+                "recognisedIn": {
+                  "type": "string",
+                  "enum": [
+                    "pl",
+                    "oci",
+                    "equity",
+                    "goodwill"
+                  ],
+                  "description": "Movement recognised in [IAS 12.58, IAS 12.61A, IAS 12.66] Options: pl (Profit or loss); oci (OCI); equity (Equity); goodwill (Goodwill (business combination))",
+                  "default": "pl"
+                },
+                "opening": {
+                  "type": "number",
+                  "description": "Opening deferred tax (liability +, asset −)",
+                  "default": 0
+                }
+              },
+              "required": [
+                "item",
+                "carryingAmount"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "description": "Items"
+          }
+        },
+        "required": [
+          "defaultRate",
+          "items"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_dta_recoverability",
+      "title": "IAS 12: Deferred tax asset recoverability (24-31, 34-37)",
+      "description": "Determines how much of the potential deferred tax asset (deductible temporary differences, unused tax losses and credits) can be recognised, using sources of taxable profit in the IAS 12 order: reversing taxable temporary differences of the same authority and entity, probable future taxable profits (excluded if there is a history of recent losses without convincing other evidence), and tax planning opportunities.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "deductibleDifferences": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Deductible temporary differences",
+            "default": 0
+          },
+          "unusedLosses": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Unused tax losses (within carryforward period) [IAS 12.34]",
+            "default": 0
+          },
+          "unusedCreditsTax": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Unused tax credits (tax amount) [IAS 12.34]",
+            "default": 0
+          },
+          "taxRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Tax rate (decimal)"
+          },
+          "reversingTaxableDifferences": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Taxable temporary differences reversing in the right periods (same authority / entity) [IAS 12.28, IAS 12.36(a)]",
+            "default": 0
+          },
+          "forecastTaxableProfits": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Probable future taxable profits before expiry (excluding new deductible differences) [IAS 12.29(a), IAS 12.36(b)]",
+            "default": 0
+          },
+          "taxPlanningOpportunities": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Taxable profit from tax planning opportunities [IAS 12.29(b), IAS 12.30]",
+            "default": 0
+          },
+          "historyOfRecentLosses": {
+            "type": "boolean",
+            "description": "History of recent losses [IAS 12.35]",
+            "default": false
+          },
+          "convincingOtherEvidence": {
+            "type": "boolean",
+            "description": "Convincing other evidence of future profits (e.g. losses from identifiable non-recurring causes) [IAS 12.35, IAS 12.36(c)]",
+            "default": false
+          }
+        },
+        "required": [
+          "taxRate"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_outside_basis",
+      "title": "IAS 12: Investments in subsidiaries, branches, associates and joint arrangements (38-45)",
+      "description": "Decides whether deferred tax is recognised on outside basis differences: a liability unless the investor controls the timing of reversal and reversal is not probable in the foreseeable future (associates normally fail the control test absent an agreement); an asset only if reversal is probable in the foreseeable future and taxable profit will be available.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "investee": {
+            "type": "string",
+            "description": "Investee",
+            "default": "Investee"
+          },
+          "relationship": {
+            "type": "string",
+            "enum": [
+              "subsidiary",
+              "branch",
+              "associate",
+              "joint_venture"
+            ],
+            "description": "Relationship [IAS 12.38] Options: subsidiary (Subsidiary); branch (Branch); associate (Associate); joint_venture (Joint venture / joint operation)",
+            "default": "subsidiary"
+          },
+          "agreementOnDistributions": {
+            "type": "boolean",
+            "description": "Agreement gives the investor control over distributions [IAS 12.42, IAS 12.43]",
+            "default": false
+          },
+          "taxableDifference": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Taxable temporary difference (e.g. undistributed profits)",
+            "default": 0
+          },
+          "deductibleDifference": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Deductible temporary difference",
+            "default": 0
+          },
+          "probableNotReverseForeseeable": {
+            "type": "boolean",
+            "description": "Probable that the taxable difference will not reverse in the foreseeable future [IAS 12.39(b)]",
+            "default": true
+          },
+          "probableReverseForeseeable": {
+            "type": "boolean",
+            "description": "Probable that the deductible difference will reverse in the foreseeable future [IAS 12.44(a)]",
+            "default": false
+          },
+          "taxableProfitAvailable": {
+            "type": "boolean",
+            "description": "Taxable profit will be available against which it can be utilised [IAS 12.44(b)]",
+            "default": false
+          },
+          "taxRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Rate on reversal (e.g. withholding / dividend tax) [IAS 12.51]"
+          }
+        },
+        "required": [
+          "taxRate"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_rate_reconciliation",
+      "title": "IAS 12: Tax expense reconciliation (81(c))",
+      "description": "Builds the numerical reconciliation between tax expense and accounting profit multiplied by the applicable rate, and the effective tax rate reconciliation; reconciling items can be entered as profit amounts (multiplied by the applicable rate) or as direct tax effects; any difference from the reported tax expense is flagged.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "accountingProfit": {
+            "type": "number",
+            "description": "Accounting profit before tax"
+          },
+          "applicableRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Applicable (domestic) rate (decimal) [IAS 12.81(c), IAS 12.85]"
+          },
+          "actualTaxExpense": {
+            "type": "number",
+            "description": "Tax expense reported"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "description": "Description"
+                },
+                "basis": {
+                  "type": "string",
+                  "enum": [
+                    "profit_amount",
+                    "tax_effect"
+                  ],
+                  "description": "Entered as Options: profit_amount (Profit amount (× applicable rate; non-deductible +, exempt −)); tax_effect (Tax effect (increase +, decrease −))",
+                  "default": "profit_amount"
+                },
+                "amount": {
+                  "type": "number",
+                  "description": "Amount"
+                }
+              },
+              "required": [
+                "description",
+                "amount"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Items",
+            "default": []
+          }
+        },
+        "required": [
+          "accountingProfit",
+          "applicableRate",
+          "actualTaxExpense"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_uncertain_tax",
+      "title": "IAS 12: Uncertain tax treatments (IFRIC 23)",
+      "description": "Applies IFRIC 23: assumes full examination; if acceptance by the authority is probable, measures consistently with the filing; otherwise reflects uncertainty using the most likely amount or the expected value, whichever better predicts the resolution, from a set of outcome scenarios.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "treatment": {
+            "type": "string",
+            "description": "Uncertain tax treatment",
+            "default": "Transfer pricing on intra-group royalties"
+          },
+          "probableAcceptance": {
+            "type": "boolean",
+            "description": "Probable the taxation authority will accept the treatment (assuming full examination) [IFRIC 23.8, IFRIC 23.9]",
+            "default": false
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "expected_value",
+              "most_likely"
+            ],
+            "description": "Method that better predicts resolution [IFRIC 23.11] Options: expected_value (Expected value (range of outcomes)); most_likely (Most likely amount (binary or concentrated outcomes))",
+            "default": "expected_value"
+          },
+          "amountAsFiled": {
+            "type": "number",
+            "description": "Tax as filed",
+            "default": 0
+          },
+          "scenarios": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "type": "string",
+                  "description": "Outcome"
+                },
+                "additionalTax": {
+                  "type": "number",
+                  "description": "Additional tax"
+                },
+                "probability": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Probability (decimal)"
+                }
+              },
+              "required": [
+                "outcome",
+                "additionalTax",
+                "probability"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Outcomes",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_pillar_two",
+      "title": "IAS 12: Pillar Two top-up taxes (4A, 88A-88D)",
+      "description": "Applies the mandatory exception from deferred tax for Pillar Two income taxes and builds the required disclosures: the fact the exception is applied, current tax related to Pillar Two, and exposure information when legislation is enacted but not yet in effect.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "groupRevenueEur": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Consolidated revenue (EUR, two of the last four years)"
+          },
+          "legislationStatus": {
+            "type": "string",
+            "enum": [
+              "none",
+              "enacted_not_effective",
+              "effective"
+            ],
+            "description": "Pillar Two legislation in relevant jurisdictions [IAS 12.88C] Options: none (Not enacted); enacted_not_effective (Enacted / substantively enacted, not yet effective); effective (In effect)",
+            "default": "effective"
+          },
+          "topUpTaxCurrent": {
+            "type": "number",
+            "description": "Current tax expense related to Pillar Two [IAS 12.88B]",
+            "default": 0
+          },
+          "exposureKnown": {
+            "type": "boolean",
+            "description": "Exposure known or reasonably estimable [IAS 12.88C, IAS 12.88D]",
+            "default": true
+          },
+          "jurisdictionsBelow15": {
+            "type": "string",
+            "description": "Jurisdictions with GloBE effective rate below 15%",
+            "default": ""
+          }
+        },
+        "required": [
+          "groupRevenueEur"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_disclosure_checklist",
+      "title": "IAS 12: Disclosure checklist (79-88D)",
+      "description": "Generates the tailored IAS 12 disclosure checklist.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "taxOutsidePl": {
+            "type": "boolean",
+            "description": "Tax recognised in OCI or equity [IAS 12.81(a)]",
+            "default": false
+          },
+          "rateChange": {
+            "type": "boolean",
+            "description": "Change in applicable tax rates [IAS 12.81(d)]",
+            "default": false
+          },
+          "unrecognisedDta": {
+            "type": "boolean",
+            "description": "Unrecognised deductible differences, losses or credits [IAS 12.81(e)]",
+            "default": false
+          },
+          "outsideBasis": {
+            "type": "boolean",
+            "description": "Investments with unrecognised outside basis differences [IAS 12.81(f)]",
+            "default": false
+          },
+          "lossMakingWithDta": {
+            "type": "boolean",
+            "description": "DTA recognised while loss-making in current or prior period [IAS 12.82]",
+            "default": false
+          },
+          "pillarTwo": {
+            "type": "boolean",
+            "description": "In scope of Pillar Two [IAS 12.88A]",
+            "default": false
+          },
+          "uncertainTax": {
+            "type": "boolean",
+            "description": "Uncertain tax treatments [IAS 12.88]",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias12_lookup",
+      "title": "IAS 12: Paragraph & topic lookup",
+      "description": "Searches the IAS 12 knowledge base by paragraph number or keywords and returns paraphrased requirements with paragraph citations, so answers can be grounded and cited.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Paragraph number or keywords"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias10_authorisation_date",
+      "title": "IAS 10: Date of authorisation for issue (4-7, 17-18)",
+      "description": "Determines the date the financial statements are authorised for issue (the end of the IAS 10 window): the date the board authorises issue where shareholders approve after issue, or the date management authorises issue to a supervisory board; preliminary announcements and shareholder approval do not change it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "periodEnd": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "End of reporting period"
+          },
+          "supervisoryBoardStructure": {
+            "type": "boolean",
+            "description": "Management issues the statements to a supervisory board (non-executives) for approval [IAS 10.6]",
+            "default": false
+          },
+          "boardAuthorisesIssue": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Board reviews and authorises issue [IAS 10.5]"
+          },
+          "managementIssuesToSupervisoryBoard": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Management authorises issue to the supervisory board [IAS 10.6]"
+          },
+          "supervisoryBoardApproves": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Supervisory board approves"
+          },
+          "preliminaryAnnouncement": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Profit or other information publicly announced (optional) [IAS 10.7]"
+          },
+          "availableToShareholders": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Made available to shareholders (optional)"
+          },
+          "shareholdersApprove": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Shareholders approve at the AGM (optional) [IAS 10.5]"
+          },
+          "ownersCanAmend": {
+            "type": "boolean",
+            "description": "Owners or others can amend the statements after issue [IAS 10.18]",
+            "default": false
+          }
+        },
+        "required": [
+          "periodEnd"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias10_classify_events",
+      "title": "IAS 10: Adjusting and non-adjusting events (3, 8-13, 21-22)",
+      "description": "Classifies each event between the end of the reporting period and the authorisation date as adjusting (evidence of conditions at the period end: adjust amounts) or non-adjusting (conditions arising after: disclose nature and financial effect if material), handles dividends declared after the period (not a liability) and flags events that require a going concern review; events outside the window are excluded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "periodEnd": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "End of reporting period"
+          },
+          "authorisationDate": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Date authorised for issue [IAS 10.3, IAS 10.5]"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event": {
+                  "type": "string",
+                  "description": "Event"
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Date"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "court_settlement",
+                    "customer_bankruptcy",
+                    "inventory_below_cost",
+                    "cost_or_proceeds_determined",
+                    "bonus_determined",
+                    "fraud_error",
+                    "fv_decline",
+                    "dividend",
+                    "business_combination",
+                    "discontinue",
+                    "asset_transactions",
+                    "fire",
+                    "restructuring",
+                    "share_transactions",
+                    "price_fx",
+                    "tax_change",
+                    "commitments",
+                    "new_litigation",
+                    "going_concern",
+                    "other"
+                  ],
+                  "description": "Type Options: court_settlement (Settlement of a court case); customer_bankruptcy (Bankruptcy of a customer (receivable at period end)); inventory_below_cost (Sale of inventories below cost (NRV evidence)); cost_or_proceeds_determined (Cost or proceeds of assets bought / sold before period end determined); bonus_determined (Profit-sharing or bonus determined (obligation at period end)); fraud_error (Discovery of fraud or errors); fv_decline (Decline in fair value of investments after period end); dividend (Dividends declared after period end); business_combination (Major business combination / disposal of a major subsidiary); discontinue (Plan to discontinue an operation announced); asset_transactions (Major asset purchases, held-for-sale classification, expropriation); fire (Destruction of a major production plant by fire); restructuring (Major restructuring announced or commenced); share_transactions (Major ordinary share transactions); price_fx (Abnormally large changes in asset prices or FX rates); tax_change (Tax rate or law change enacted / announced after period end); commitments (Significant commitments or contingent liabilities entered into); new_litigation (Major litigation arising solely from post-period events); going_concern (Decision to liquidate / cease trading, or severe deterioration); other (Other (use the 'condition existed' flag))",
+                  "default": "other"
+                },
+                "conditionExistedAtPeriodEnd": {
+                  "type": "boolean",
+                  "description": "Condition existed at period end (court cases / other) [IAS 10.3]",
+                  "default": true
+                },
+                "amount": {
+                  "type": "number",
+                  "description": "Financial effect (estimate)",
+                  "default": 0
+                },
+                "material": {
+                  "type": "boolean",
+                  "description": "Material",
+                  "default": true
+                }
+              },
+              "required": [
+                "event",
+                "date"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "description": "Events"
+          }
+        },
+        "required": [
+          "periodEnd",
+          "authorisationDate",
+          "events"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias10_going_concern",
+      "title": "IAS 10: Going concern after the reporting period (14-16)",
+      "description": "Determines whether events after the reporting period mean the going concern basis is not appropriate (intention or no realistic alternative but to liquidate or cease trading), whether deterioration requires reassessment, and the disclosures for material uncertainties.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intendsToLiquidateOrCease": {
+            "type": "boolean",
+            "description": "Management intends to liquidate the entity or cease trading [IAS 10.14]",
+            "default": false
+          },
+          "noRealisticAlternative": {
+            "type": "boolean",
+            "description": "Management has no realistic alternative but to do so [IAS 10.14]",
+            "default": false
+          },
+          "deteriorationAfterPeriod": {
+            "type": "boolean",
+            "description": "Operating results and financial position deteriorated after the period [IAS 10.15]",
+            "default": false
+          },
+          "materialUncertainties": {
+            "type": "boolean",
+            "description": "Material uncertainties cast significant doubt on going concern [IAS 10.16]",
+            "default": false
+          },
+          "monthsAssessed": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Months from period end covered by the assessment",
+            "default": 12
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias10_disclosure_checklist",
+      "title": "IAS 10: Disclosure checklist (13, 17-22)",
+      "description": "Generates the tailored IAS 10 disclosure checklist.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dividendsDeclared": {
+            "type": "boolean",
+            "description": "Dividends declared after the reporting period [IAS 10.13]",
+            "default": false
+          },
+          "newInformation": {
+            "type": "boolean",
+            "description": "New information about conditions at the period end [IAS 10.19]",
+            "default": false
+          },
+          "nonAdjustingEvents": {
+            "type": "boolean",
+            "description": "Material non-adjusting events [IAS 10.21]",
+            "default": false
+          },
+          "goingConcernDoubt": {
+            "type": "boolean",
+            "description": "Going concern doubts or not a going concern [IAS 10.14]",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ias10_lookup",
+      "title": "IAS 10: Paragraph & topic lookup",
+      "description": "Searches the IAS 10 knowledge base by paragraph number or keywords and returns paraphrased requirements with paragraph citations, so answers can be grounded and cited.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Paragraph number or keywords"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

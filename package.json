@@ -1,0 +1,14 @@
+{
+  "name": "ifrs-year-end-close-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "IFRS Year-End Close Agent: Impairment (IAS 36), provisions (IAS 37), income taxes and Pillar Two (IAS 12) and events after the reporting period (IAS 10) in one agent. Demo and educational use only.",
+  "scripts": {
+    "start": "node dist/server.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "SEE LICENSE IN LICENSE.md"
+}
