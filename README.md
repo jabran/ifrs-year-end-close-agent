@@ -1,5 +1,7 @@
 # IFRS Year-End Close Agent
 
+[![IFRS Year-End Close Agent MCP server](https://mcprush.com/badge/ifrs-year-end-close-agent-mcp/card.svg)](https://mcprush.com/to/ifrs-year-end-close-agent-mcp?ref=badge)
+
 Impairment (IAS 36), provisions (IAS 37), income taxes and Pillar Two (IAS 12) and events after the reporting period (IAS 10) in one agent.
 
 > FOR DEMONSTRATION AND EDUCATIONAL PURPOSES ONLY. This output is not accounting, audit, tax or legal advice, and no liability whatsoever is assumed for its results or for any decision based on them. Paragraph references point to the IFRS Accounting Standards issued by the IASB; the standards' text is not reproduced. Results depend entirely on the facts entered and must be independently verified by a qualified professional against the current authoritative text before any use.
